@@ -1,0 +1,2 @@
+paho-mqtt==1.2
+mysql-connector-python-rf==2.1.3

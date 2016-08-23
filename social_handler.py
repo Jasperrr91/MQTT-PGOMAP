@@ -1,37 +1,56 @@
-import thread
 import paho.mqtt.client as mqtt
-import Geohash
-import errno
-from socket import error as socket_error
+import pokemon_list
+import mysql.connector
+from mysql.connector import IntegrityError
+from datetime import datetime, timedelta
 
-class MyMQTTClass:
-    def __init__(self, clientid=None):
-        self._mqttc = mqtt.Client(clientid)
-        self._mqttc.on_message = self.mqtt_on_message
-    def mqtt_on_message(self, mqttc, obj, msg):
-        msg.topic+" "+str(msg.qos)+" "+str(msg.payload)
-    def publish(self, channel, message):
-        self._mqttc.publish(channel, message)
-    def connect_to_mqtt(self):
-        self._mqttc.connect("test.mosca.io", 1883, 60)
-        self._mqttc.subscribe("pgomapcatch/#", 0)
-    def run(self):
-        self._mqttc.loop_forever()
-class SocialHandler(EventHandler):
-    def __init__(self, bot):
-        self.bot = bot
-        try:
-            self.mqttc = MyMQTTClass()
-            self.mqttc.connect_to_mqtt()
-            thread.start_new_thread(self.mqttc.run)
-        except socket_error as serr:
-            self.mqttc = None
-    def handle_event(self, event, sender, level, formatted_msg, data):
-        if self.mqttc == None:
-            return
-        if event == 'catchable_pokemon':
-            if data['pokemon_id']:
-                # precision=4 mean 19545 meters, http://stackoverflow.com/questions/13836416/geohash-and-max-distance
-                geo_hash = Geohash.encode(data['latitude'], data['longitude'], precision=4)
-                self.mqttc.publish("pgomapgeo/"+geo_hash+"/"+str(data['pokemon_id']), str(data['latitude'])+","+str(data['longitude'])+","+str(data['encounter_id']))
-                self.mqttc.publish("pgomapcatch/all/catchable/"+str(data['pokemon_id']), str(data['latitude'])+","+str(data['longitude'])+","+str(data['encounter_id']))
+cnx = mysql.connector.connect(user='root', password='mysql',
+                              host='127.0.0.1',
+                              database='dump_mqtt')
+cursor = cnx.cursor()
+
+
+# The callback for when the client receives a CONNACK response from the server.
+def on_connect(client, userdata, rc):
+    print("Connected with result code "+str(rc))
+
+    # Subscribing in on_connect() means that if we lose the connection and
+	# reconnect then subscriptions will be renewed.
+    client.subscribe("$SYS/#")
+
+# The callback for when a PUBLISH message is received from the server.
+def on_message(client, userdata, msg):
+    if(msg.topic.startswith('pgomapcatch')):
+        topic = msg.topic.split('pgomapcatch/all/catchable/')
+        pokemon_id = int(topic[1]) - 1
+        pokemon_name = pokemon_list.pokemon[pokemon_id]
+        data = msg.payload.split(',')
+
+        current_time = datetime.now() + timedelta(minutes=15)
+        time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
+
+        pokemon = (data[2], '', pokemon_id, data[0], data[1], time_string)
+        insert_pokemon(pokemon)
+
+        print("[" + time_string + "] " + pokemon_name + " found at " + data[0] + ", " + data[1])
+
+def insert_pokemon(pokemon):
+    add_pokemon = ("INSERT INTO pokemon "
+                    "(encounter_id, spawnpoint_id, pokemon_id, latitude, longitude, disappear_time) "
+                    "VALUES (%s, %s, %s, %s, %s, %s)")
+    try:
+        cursor.execute(add_pokemon, pokemon)
+    except IntegrityError as e:
+        print "Duplicate"
+
+    cnx.commit()
+
+
+client = mqtt.Client()
+client.on_connect = on_connect
+client.on_message = on_message
+
+client.connect("test.mosca.io", 1883, 60)
+client.subscribe("pgomapcatch/#", 0)
+
+client.loop_forever()
