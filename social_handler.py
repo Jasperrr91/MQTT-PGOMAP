@@ -3,10 +3,11 @@ import pokemon_list
 import mysql.connector
 from mysql.connector import IntegrityError
 from datetime import datetime, timedelta
+import config
 
-cnx = mysql.connector.connect(user='root', password='mysql',
-                              host='127.0.0.1',
-                              database='dump_mqtt')
+cnx = mysql.connector.connect(user=config.db['user'], password=config.db['password'],
+                              host=config.db['host'],
+                              database=config.db['database'])
 cursor = cnx.cursor()
 
 
