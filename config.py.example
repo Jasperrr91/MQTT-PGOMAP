@@ -1,0 +1,6 @@
+db = dict(
+    host = '127.0.0.1',
+    database = 'dump_mqtt',
+    user = 'root',
+    password = 'mysql'
+)
