@@ -20,7 +20,7 @@ def on_connect(client, userdata, rc):
 
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
-    if(msg.topic.startswith('pgomapcatch')):
+    if(msg.topic.startswith('pgomapcatch/all/catchable/')):
         topic = msg.topic.split('pgomapcatch/all/catchable/')
         pokemon_id = int(topic[1]) - 1
         pokemon_name = pokemon_list.pokemon[pokemon_id]
