@@ -22,17 +22,25 @@ def on_connect(client, userdata, rc):
 def on_message(client, userdata, msg):
     if(msg.topic.startswith('pgomapcatch/all/catchable/')):
         topic = msg.topic.split('pgomapcatch/all/catchable/')
-        pokemon_id = int(topic[1]) - 1
-        pokemon_name = pokemon_list.pokemon[pokemon_id]
-        data = msg.payload.split(',')
+        pid = int(topic[1])
+        process_pokemon(pid, msg)
+    elif(msg.topic.startswith('pgomapgeo')):
+        topic = msg.topic.split('/')
+        pid = int(topic[2])
+        process_pokemon(pid, msg)
 
-        current_time = datetime.now() + timedelta(minutes=15)
-        time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
+def process_pokemon(pid, msg):
+    pokemon_id = pid - 1
+    pokemon_name = pokemon_list.pokemon[pokemon_id]
+    data = msg.payload.split(',')
 
-        pokemon = (data[2], '', pokemon_id, data[0], data[1], time_string)
-        insert_pokemon(pokemon)
+    current_time = datetime.now() + timedelta(minutes=15)
+    time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
 
-        print("[" + time_string + "] " + pokemon_name + " found at " + data[0] + ", " + data[1])
+    pokemon = (data[2], '', pokemon_id, data[0], data[1], time_string)
+    insert_pokemon(pokemon)
+
+    print("[" + time_string + "] " + pokemon_name + " found at " + data[0] + ", " + data[1])
 
 def insert_pokemon(pokemon):
     add_pokemon = ("INSERT INTO pokemon "
@@ -52,5 +60,6 @@ client.on_message = on_message
 
 client.connect("test.mosca.io", 1883, 60)
 client.subscribe("pgomapcatch/#", 0)
+client.subscribe("pgomapgeo/#", 0)
 
 client.loop_forever()
